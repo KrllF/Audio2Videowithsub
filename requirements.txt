@@ -1,0 +1,10 @@
+spleeter
+pydub
+whisper
+ffmpeg-python
+torch
+subprocess
+os
+aiogram
+datasets
+transformers
