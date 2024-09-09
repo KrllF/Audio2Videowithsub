@@ -8,8 +8,16 @@ import os
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-model_whisper_base = whisper.load_model("base", device=device)
-model_whisper_medium = whisper.load_model("medium", device=device)
+model_whisper_small = whisper.load_model("small", device=device)
+
+def delete_files_in_folder(folder_path):
+    for filename in os.listdir(folder_path):
+        file_path = os.path.join(folder_path, filename)
+        try:
+            if os.path.isfile(file_path):
+                os.remove(file_path)
+        except Exception as e:
+            print(f'Ошибка при удалении файла {file_path}. {e}')
 
 # audio_name
 # audio_format
@@ -18,20 +26,31 @@ def normalized_audio(audio_name, audio_format):
     normalized_audio = effects.normalize(audio)
     normalized_audio.export(f"fix_audio/{audio_name}_normalized.wav", format="wav")
 
+
 def audio_split(input_file, output_folder):
+    os.makedirs(output_folder, exist_ok=True)
+
     command = [
-        "spleeter", "separate",  # Command for Spleeter to separate
-        "-p", "spleeter:2stems",  # Model parameters: 2 parts (vocal and instrumental)
-        "-o", output_folder,      # Path to save output files
-        input_file                # Path to input audio file (specified without the -i flag)
+        "spleeter", "separate",
+        "-p", "spleeter:2stems",
+        "-o", output_folder,
+        input_file
     ]
 
-    # Run the command
-    subprocess.run(command)
+    try:
+        result = subprocess.run(command, check=True, text=True, capture_output=True)
+        print("Аудиофайл успешно разделен.")
+        print(result.stdout)
+    except subprocess.CalledProcessError as e:
+        print(f"Ошибка при разделении аудиофайла: {e}")
+        print(f"Стандартный вывод: {e.stdout}")
+        print(f"Стандартный поток ошибок: {e.stderr}")
+    except Exception as e:
+        print(f"Возникла непредвиденная ошибка: {e}")
 
 def subtitles(vocals_path, audio_name):
 
-    result = model_whisper_medium.transcribe(vocals_path)
+    result = model_whisper_small.transcribe(vocals_path)
 
     with open(f"fix_audio/{audio_name}_normalized/subtitles.srt", "w") as f:
         for i, segment in enumerate(result["segments"]):
@@ -58,9 +77,9 @@ def rndr_video(audio_name):
     subtitles_path = f"fix_audio/{audio_name}_normalized/subtitles.srt"
     output_path = f"fix_audio/{audio_name}_normalized/{audio_name}_output.mp4"
 
-    # Команда FFmpeg
     command = [
         "ffmpeg",
+        "-y",
         "-loop", "1",
         "-i", background_path,
         "-i", audio_path,
@@ -74,7 +93,6 @@ def rndr_video(audio_name):
         output_path
     ]
 
-    # Запуск команды
     try:
         subprocess.run(command, check=True)
         print("Видео успешно создано.")
@@ -96,5 +114,6 @@ def output_video(audio_name, audio_format):
 
     subtitles(f"fix_audio/{audio_name}_normalized/vocals.wav", audio_name=audio_name)
     rndr_video(audio_name)
+
 
 
