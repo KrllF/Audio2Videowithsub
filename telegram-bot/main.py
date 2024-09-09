@@ -2,12 +2,15 @@ import os
 import asyncio
 import logging
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import ContentType, InputFile
+from aiogram.types import ContentType,  FSInputFile
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram import Router, F
 from config import TOKEN
-from func_file import output_video
+from func_file import output_video, delete_files_in_folder
+
 logging.basicConfig(level=logging.INFO)
+
+all_media_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fix_audio')
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
@@ -24,31 +27,37 @@ async def send_welcome(message: types.Message):
 @router.message(F.content_type == ContentType.AUDIO)
 @router.message(F.content_type == ContentType.VOICE)
 async def handle_audio(message: types.Message):
-    audio_file = message.audio if message.audio else message.voice
-    file_name = f"{audio_file.file_id}.ogg"
-    file_path = os.path.join(fix_dir, file_name)
+    delete_files_in_folder("fix_audio")
+    try:
+        if message.audio:
+            audio_file = message.audio
+            audio_format = audio_file.mime_type.split('/')[-1]
+            file_id = audio_file.file_id
+        else:
+            audio_file = message.voice
+            audio_format = "ogg"
+            file_id = audio_file.file_id
 
-    await bot.download(audio_file.file_id, destination=file_path)
+        # Загружаем файл аудио с Telegram
+        file = await bot.get_file(file_id)
+        file_name = f"audio_file.{audio_format}"
+        file_path = os.path.join(file_name)
 
-    audio_name = os.path.splitext(file_name)[0]
-    audio_format = "ogg"
+        await bot.download_file(file.file_path, file_path)
 
-    output_video(audio_name, audio_format)
+        output_video("audio_file", audio_format)
 
-    video_path = f"fix_audio/{audio_name}_normalized/{audio_name}_output.mp4"
+        await message.reply("Видео готово. Отправляю...")
+        video_file_path = os.path.join(all_media_dir, 'audio_file_normalized', "audio_file_output.mp4")
+        video_input_file = FSInputFile(video_file_path)
+        await bot.send_video(chat_id=message.chat.id, video=video_input_file)
 
-    if os.path.exists(video_path):
-        await message.answer_video(video=InputFile(video_path), caption="Вот ваше видео!")
-    else:
-        await message.answer("Произошла ошибка при создании видео.")
-
-    if os.path.exists(file_path):
-        os.remove(file_path)
-    if os.path.exists(video_path):
-        os.remove(video_path)
+    except Exception as e:
+        await message.reply(f"Произошла ошибка: {e}")
 
 async def main():
     await dp.start_polling(bot)
+
 
 if __name__ == '__main__':
     asyncio.run(main())
