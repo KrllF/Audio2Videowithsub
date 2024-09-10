@@ -6,7 +6,6 @@ import subprocess
 import ffmpeg
 import os
 
-from config import background_path
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -60,7 +59,6 @@ def subtitles(vocals_path, audio_name):
             end_time = segment["end"]
             text = segment["text"]
 
-            # Форматируем время в нужный формат для .srt
             start_formatted = str(int(start_time // 3600)).zfill(2) + ":" + \
                               str(int((start_time % 3600) // 60)).zfill(2) + ":" + \
                               str(int(start_time % 60)).zfill(2) + "," + \
@@ -77,10 +75,10 @@ def ffmpeg_command(audio_name, background_path, audio_path, subtitles_path, outp
     return [
         "ffmpeg",
         "-y",
-        "-loop", "1",
         "-i", background_path,
         "-i", audio_path,
-        "-vf", f"fade=t=in:st=0:d=1,fade=t=out:st=29:d=1,subtitles={subtitles_path}:force_style='FontSize=24,PrimaryColour=&HFFFFFF&'",
+        "-vf",
+        f"fade=t=in:st=0:d=1,fade=t=out:st=29:d=1,subtitles={subtitles_path}:force_style='FontSize=24,PrimaryColour=&HFFFFFF&'",
         "-c:v", "libx264",
         "-tune", "stillimage",
         "-c:a", "aac",
@@ -90,14 +88,14 @@ def ffmpeg_command(audio_name, background_path, audio_path, subtitles_path, outp
         output_path
     ]
 
-def rndr_video(audio_name):
-    audio_path_minus = f"fix_audio/{audio_name}_normalized/accompaniment.wav"
-    audio_path_plus = f"fix_audio/{audio_name}_normalized.wav"
-    subtitles_path = f"fix_audio/{audio_name}_normalized/subtitles.srt"
-    output_path_minus = f"fix_audio/{audio_name}_normalized/{audio_name}_minus_output.mp4"
-    output_path_plus = f"fix_audio/{audio_name}_normalized/{audio_name}_plus_output.mp4"
-    command_minus = ffmpeg_command(audio_name, background_path, audio_path_minus, subtitles_path, output_path_minus)
-    command_plus = ffmpeg_command(audio_name, background_path, audio_path_plus, subtitles_path, output_path_plus)
+def rndr_video(av_name, background_path):
+    audio_path_minus = f"fix_audio/{av_name}_normalized/accompaniment.wav"
+    audio_path_plus = f"fix_audio/{av_name}_normalized.wav"
+    subtitles_path = f"fix_audio/{av_name}_normalized/subtitles.srt"
+    output_path_minus = f"fix_audio/{av_name}_normalized/{av_name}_minus_output.mp4"
+    output_path_plus = f"fix_audio/{av_name}_normalized/{av_name}_plus_output.mp4"
+    command_minus = ffmpeg_command(av_name, background_path, audio_path_minus, subtitles_path, output_path_minus)
+    command_plus = ffmpeg_command(av_name, background_path, audio_path_plus, subtitles_path, output_path_plus)
 
     try:
         subprocess.run(command_minus, check=True)
@@ -106,16 +104,16 @@ def rndr_video(audio_name):
         print(f"Ошибка при выполнении команды: {e}")
 
 
-def output_video(audio_name, audio_format):
-    normalized_audio_name = f"fix_audio/{audio_name}_normalized.wav"
+def output_video(av_name, audio_format, background_path):
+    normalized_audio_name = f"fix_audio/{av_name}_normalized.wav"
 
-    normalized_audio(audio_name, audio_format)
+    normalized_audio(av_name, audio_format)
 
     audio_split(normalized_audio_name, "fix_audio")
 
 
-    subtitles(f"fix_audio/{audio_name}_normalized/vocals.wav", audio_name=audio_name)
-    rndr_video(audio_name)
+    subtitles(f"fix_audio/{av_name}_normalized/vocals.wav", audio_name=av_name)
+    rndr_video(av_name, background_path)
 
     if os.path.exists(normalized_audio_name):
         os.remove(normalized_audio_name)
