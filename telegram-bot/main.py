@@ -5,12 +5,13 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.types import ContentType, FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram import Router, F
-from config import TOKEN
+from config import TOKEN, background_path_video, background_path_audio
 from func_file import output_video, delete_files_in_folder
+import subprocess
+
 
 logging.basicConfig(level=logging.INFO)
 
-# Определяем директорию для хранения аудиофайлов
 all_media_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fix_audio')
 
 bot = Bot(token=TOKEN)
@@ -59,7 +60,7 @@ async def handle_audio(message: types.Message):
         file_name = f"audio_file.{audio_format}"
         file_path = os.path.join(file_name)
         await bot.download_file(file.file_path, file_path)
-        output_video("audio_file", audio_format)
+        output_video("audio_file", audio_format, background_path_audio)
 
 
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -96,6 +97,38 @@ async def handle_without_voice(callback_query: types.CallbackQuery):
         await bot.send_video(chat_id=callback_query.message.chat.id, video=video_input_file)
     except Exception as e:
         await callback_query.message.reply(f"Произошла ошибка: {e}")
+
+@router.message(F.content_type == ContentType.VIDEO)
+@router.message(F.content_type == ContentType.VIDEO_NOTE)
+async def handle_video(message: types.Message):
+    delete_files_in_folder("fix_audio")
+
+    try:
+        if message.video:
+            video_file = message.video
+            video_format = video_file.mime_type.split('/')[-1]
+            file_id = video_file.file_id
+        else:
+            video_file = message.video_note
+            video_format = "mp4"
+            file_id = video_file.file_id
+
+        file = await bot.get_file(file_id)
+        file_name = f"video_file.{video_format}"
+        file_path = os.path.join(file_name)
+        await bot.download_file(file.file_path, file_path)
+
+        output_video("video_file", video_format, "video_file.mp4")
+
+        await message.answer("Создаю видео с субтитрами...")
+
+        video_file_path = os.path.join(all_media_dir, 'video_file_normalized', "video_file_plus_output.mp4")
+        video_input_file = FSInputFile(video_file_path)
+        await bot.send_video(chat_id=message.chat.id, video=video_input_file)
+
+    except Exception as e:
+        await message.reply(f"Произошла ошибка: {e}")
+
 
 
 async def main():
