@@ -8,7 +8,7 @@ import os
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-model_whisper_small = whisper.load_model("small", device=device)
+model_whisper = whisper.load_model("small", device=device)
 
 def delete_files_in_folder(folder_path):
     for filename in os.listdir(folder_path):
@@ -50,7 +50,7 @@ def audio_split(input_file, output_folder):
 
 def subtitles(vocals_path, audio_name):
 
-    result = model_whisper_small.transcribe(vocals_path)
+    result = model_whisper.transcribe(vocals_path)
 
     with open(f"fix_audio/{audio_name}_normalized/subtitles.srt", "w") as f:
         for i, segment in enumerate(result["segments"]):
@@ -71,19 +71,14 @@ def subtitles(vocals_path, audio_name):
 
             f.write(f"{i+1}\n{start_formatted} --> {end_formatted}\n{text.strip()}\n\n")
 
-def rndr_video(audio_name):
-    background_path = "total_black_background.jpg"
-    audio_path = f"fix_audio/{audio_name}_normalized/accompaniment.wav"
-    subtitles_path = f"fix_audio/{audio_name}_normalized/subtitles.srt"
-    output_path = f"fix_audio/{audio_name}_normalized/{audio_name}_output.mp4"
-
-    command = [
+def ffmpeg_command(audio_name, background_path, audio_path, subtitles_path, output_path):
+    return [
         "ffmpeg",
         "-y",
         "-loop", "1",
         "-i", background_path,
         "-i", audio_path,
-        "-vf", f"subtitles={subtitles_path}",
+        "-vf", f"fade=t=in:st=0:d=1,fade=t=out:st=29:d=1,subtitles={subtitles_path}:force_style='FontSize=24,PrimaryColour=&HFFFFFF&'",
         "-c:v", "libx264",
         "-tune", "stillimage",
         "-c:a", "aac",
@@ -93,11 +88,20 @@ def rndr_video(audio_name):
         output_path
     ]
 
+def rndr_video(audio_name):
+    background_path = "total_black_background.jpg"  # Измените на другое изображение по желанию
+    audio_path = f"fix_audio/{audio_name}_normalized/accompaniment.wav"
+    subtitles_path = f"fix_audio/{audio_name}_normalized/subtitles.srt"
+    output_path = f"fix_audio/{audio_name}_normalized/{audio_name}_output.mp4"
+
+    command = ffmpeg_command(audio_name, background_path, audio_path, subtitles_path, output_path)
+
     try:
         subprocess.run(command, check=True)
         print("Видео успешно создано.")
     except subprocess.CalledProcessError as e:
         print(f"Ошибка при выполнении команды: {e}")
+
 
 def output_video(audio_name, audio_format):
     normalized_audio_name = f"fix_audio/{audio_name}_normalized.wav"
@@ -114,6 +118,5 @@ def output_video(audio_name, audio_format):
 
     subtitles(f"fix_audio/{audio_name}_normalized/vocals.wav", audio_name=audio_name)
     rndr_video(audio_name)
-
 
 
