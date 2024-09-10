@@ -1,11 +1,12 @@
-from huggingface_hub import notebook_login
-notebook_login()
+from sklearn.model_selection import train_test_split
 from datasets import load_dataset, DatasetDict
+import torch
 
 common_voice = DatasetDict()
 token_for = "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"
-common_voice["train"] = load_dataset("mozilla-foundation/common_voice_11_0", "ru", split="train+validation", token=token_for)
-common_voice["test"] = load_dataset("mozilla-foundation/common_voice_11_0", "ru", split="test", token=token_for)
+
+common_voice["train"] = load_dataset("mozilla-foundation/common_voice_11_0", "ru", split="train[:10%]", token=token_for)
+common_voice["test"] = load_dataset("mozilla-foundation/common_voice_11_0", "ru", split="test[:10%]", token=token_for)
 
 print(common_voice)
 
@@ -47,7 +48,7 @@ def prepare_dataset(batch):
     batch["labels"] = tokenizer(batch["sentence"]).input_ids
     return batch
 
-common_voice = common_voice.map(prepare_dataset, remove_columns=common_voice.column_names["train"], num_proc=2)
+common_voice = common_voice.map(prepare_dataset, remove_columns=common_voice.column_names["train"], num_proc=1)
 
 import torch
 
@@ -100,7 +101,7 @@ model.config.suppress_tokens = []
 from transformers import Seq2SeqTrainingArguments
 
 training_args = Seq2SeqTrainingArguments(
-    output_dir="./whisper-small-hi",
+    output_dir="./whisper-medium-ru",
     per_device_train_batch_size=16,
     gradient_accumulation_steps=1,
     learning_rate=1e-5,
@@ -135,3 +136,6 @@ trainer = Seq2SeqTrainer(
 )
 
 trainer.train()
+
+torch.save(model.state_dict(), "model_medium_tune.pth")
+
