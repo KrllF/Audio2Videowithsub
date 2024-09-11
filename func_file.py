@@ -5,21 +5,28 @@ import torch
 import subprocess
 import ffmpeg
 import os
+import shutil
 
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-model_whisper = whisper.load_model("small", device=device)
+models = {}
 
-def delete_files_in_folder(folder_path):
-    for filename in os.listdir(folder_path):
-        file_path = os.path.join(folder_path, filename)
-        try:
-            if os.path.isfile(file_path):
-                os.remove(file_path)
-        except Exception as e:
-            print(f'Ошибка при удалении файла {file_path}. {e}')
-# audio_name
+def load_all_models():
+    global models
+    models["small"] = whisper.load_model("small", device=device)
+    models['base'] = whisper.load_model("base", device=device)
+load_all_models()
+
+
+def get_model_by_choice(model_choice):
+    return models.get(model_choice, models["small"])
+
+
+def delete_everything_in_folder(folder_path):
+    shutil.rmtree(folder_path)
+    os.mkdir(folder_path)
+
 # audio_format
 def normalized_audio(audio_name, audio_format):
     audio = AudioSegment.from_file(audio_name + '.' + audio_format)
@@ -49,9 +56,8 @@ def audio_split(input_file, output_folder):
         print(f"Возникла ошибка: {e}")
 
 
-def subtitles(vocals_path, audio_name):
-
-    result = model_whisper.transcribe(vocals_path)
+def subtitles(vocals_path, audio_name, whisper_model):
+    result = whisper_model.transcribe(vocals_path)
 
     with open(f"fix_audio/{audio_name}_normalized/subtitles.srt", "w") as f:
         for i, segment in enumerate(result["segments"]):
@@ -139,16 +145,18 @@ def rndr_video_video(av_name, background_path):
         print(f"Ошибка при выполнении команды: {e}")
 
 
-def output_video(av_name, audio_format, background_path, flag = True):
+def output_video(av_name, audio_format, background_path, model_choice="small", flag=True):
     normalized_audio_name = f"fix_audio/{av_name}_normalized.wav"
+
+    whisper_model = get_model_by_choice(model_choice)
 
     normalized_audio(av_name, audio_format)
 
     audio_split(normalized_audio_name, "fix_audio")
 
-    subtitles(f"fix_audio/{av_name}_normalized/vocals.wav", audio_name=av_name)
+    subtitles(f"fix_audio/{av_name}_normalized/vocals.wav", audio_name=av_name, whisper_model=whisper_model)
 
-    if flag is True:
+    if flag:
         rndr_video_audio(av_name, background_path)
     else:
         rndr_video_video(av_name, background_path)
