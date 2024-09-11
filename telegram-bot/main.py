@@ -6,7 +6,7 @@ from aiogram.types import ContentType, FSInputFile, InlineKeyboardMarkup, Inline
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram import Router, F
 from config import TOKEN, background_path_audio
-from func_file import output_video, delete_files_in_folder
+from func_file import output_video, delete_everything_in_folder
 import subprocess
 
 
@@ -25,8 +25,25 @@ os.makedirs(fix_dir, exist_ok=True)
 
 @router.message(F.text == "/start")
 async def send_welcome(message: types.Message):
-    await message.answer("Здравствуйте! Пришлите аудио и получите видео с субтитрами.")
+    await message.answer("Здравствуйте! Пришлите аудио и выберите модель Whisper для обработки:", reply_markup=model_selection_keyboard())
 
+def model_selection_keyboard():
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="Base (- качество, + скорость)", callback_data="model_base"),
+            InlineKeyboardButton(text="Small (+ качество, - скорость)", callback_data="model_small"),
+        ]
+    ])
+    return keyboard
+
+@router.callback_query(F.data.startswith("model_"))
+async def handle_model_selection(callback_query: types.CallbackQuery):
+    model = callback_query.data.split("_")[1]
+    user_id = callback_query.from_user.id
+    bot_data = dp.storage
+    await bot_data.update_data(user_id, {'whisper_model': model})
+    await callback_query.answer(f"Модель Whisper выбрана: {model.capitalize()}")
+    await callback_query.message.reply("Теперь отправьте аудио для обработки.")
 
 @router.message(F.text == "/help")
 async def send_help(message: types.Message):
@@ -44,7 +61,10 @@ async def send_help(message: types.Message):
 @router.message(F.content_type == ContentType.AUDIO)
 @router.message(F.content_type == ContentType.VOICE)
 async def handle_audio(message: types.Message):
-    delete_files_in_folder("fix_audio")
+    delete_everything_in_folder("fix_audio")
+
+    user_data = await dp.storage.get_data(message.from_user.id)
+    model_name = user_data.get('whisper_model', 'small')
 
     try:
         if message.audio:
@@ -63,8 +83,7 @@ async def handle_audio(message: types.Message):
 
         await message.reply("Создаю видео с субтитрами...")
 
-        output_video("audio_file", audio_format, background_path_audio,flag=True)
-
+        output_video("audio_file", audio_format, background_path_audio, model_choice=model_name, flag=True)
 
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [
@@ -104,7 +123,10 @@ async def handle_without_voice(callback_query: types.CallbackQuery):
 @router.message(F.content_type == ContentType.VIDEO)
 @router.message(F.content_type == ContentType.VIDEO_NOTE)
 async def handle_video(message: types.Message):
-    delete_files_in_folder("fix_audio")
+    delete_everything_in_folder("fix_audio")
+
+    user_data = await dp.storage.get_data(message.from_user.id)
+    model_name = user_data.get('whisper_model', 'small')
 
     try:
         if message.video:
@@ -123,9 +145,7 @@ async def handle_video(message: types.Message):
 
         await message.reply("Создаю видео с субтитрами...")
 
-
-        output_video("video_file", video_format, "video_file.mp4", flag=False)
-
+        output_video("video_file", video_format, "video_file.mp4", model_choice=model_name, flag=False)
 
         video_file_path = os.path.join(all_media_dir, 'video_file_normalized', "video_file_plus_output.mp4")
         video_input_file = FSInputFile(video_file_path)
