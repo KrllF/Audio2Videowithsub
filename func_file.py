@@ -19,7 +19,6 @@ def delete_files_in_folder(folder_path):
                 os.remove(file_path)
         except Exception as e:
             print(f'Ошибка при удалении файла {file_path}. {e}')
-
 # audio_name
 # audio_format
 def normalized_audio(audio_name, audio_format):
@@ -49,6 +48,7 @@ def audio_split(input_file, output_folder):
     except Exception as e:
         print(f"Возникла ошибка: {e}")
 
+
 def subtitles(vocals_path, audio_name):
 
     result = model_whisper.transcribe(vocals_path)
@@ -71,10 +71,29 @@ def subtitles(vocals_path, audio_name):
 
             f.write(f"{i+1}\n{start_formatted} --> {end_formatted}\n{text.strip()}\n\n")
 
-def ffmpeg_command(audio_name, background_path, audio_path, subtitles_path, output_path):
+
+def ffmpeg_command_video(background_path, audio_path, subtitles_path, output_path):
     return [
         "ffmpeg",
         "-y",
+        "-i", background_path,
+        "-i", audio_path,
+        "-vf",
+        f"fade=t=in:st=0:d=1,fade=t=out:st=29:d=1,subtitles={subtitles_path}:force_style='FontSize=12,PrimaryColour=&HFFFFFF&'",
+        "-c:v", "libx264",
+        "-tune", "stillimage",
+        "-c:a", "aac",
+        "-b:a", "192k",
+        "-pix_fmt", "yuv420p",
+        output_path
+    ]
+
+
+def ffmpeg_command_audio(background_path, audio_path, subtitles_path, output_path):
+    return [
+        "ffmpeg",
+        "-y",
+        "-loop", "1",
         "-i", background_path,
         "-i", audio_path,
         "-vf",
@@ -88,14 +107,30 @@ def ffmpeg_command(audio_name, background_path, audio_path, subtitles_path, outp
         output_path
     ]
 
-def rndr_video(av_name, background_path):
+
+def rndr_video_audio(av_name, background_path):
     audio_path_minus = f"fix_audio/{av_name}_normalized/accompaniment.wav"
     audio_path_plus = f"fix_audio/{av_name}_normalized.wav"
     subtitles_path = f"fix_audio/{av_name}_normalized/subtitles.srt"
     output_path_minus = f"fix_audio/{av_name}_normalized/{av_name}_minus_output.mp4"
     output_path_plus = f"fix_audio/{av_name}_normalized/{av_name}_plus_output.mp4"
-    command_minus = ffmpeg_command(av_name, background_path, audio_path_minus, subtitles_path, output_path_minus)
-    command_plus = ffmpeg_command(av_name, background_path, audio_path_plus, subtitles_path, output_path_plus)
+    command_minus = ffmpeg_command_audio(background_path, audio_path_minus, subtitles_path, output_path_minus)
+    command_plus = ffmpeg_command_audio(background_path, audio_path_plus, subtitles_path, output_path_plus)
+    try:
+        subprocess.run(command_minus, check=True)
+        subprocess.run(command_plus, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Ошибка при выполнении команды: {e}")
+
+
+def rndr_video_video(av_name, background_path):
+    audio_path_minus = f"fix_audio/{av_name}_normalized/accompaniment.wav"
+    audio_path_plus = f"fix_audio/{av_name}_normalized.wav"
+    subtitles_path = f"fix_audio/{av_name}_normalized/subtitles.srt"
+    output_path_minus = f"fix_audio/{av_name}_normalized/{av_name}_minus_output.mp4"
+    output_path_plus = f"fix_audio/{av_name}_normalized/{av_name}_plus_output.mp4"
+    command_minus = ffmpeg_command_video(background_path, audio_path_minus, subtitles_path, output_path_minus)
+    command_plus = ffmpeg_command_video(background_path, audio_path_plus, subtitles_path, output_path_plus)
 
     try:
         subprocess.run(command_minus, check=True)
@@ -104,22 +139,16 @@ def rndr_video(av_name, background_path):
         print(f"Ошибка при выполнении команды: {e}")
 
 
-def output_video(av_name, audio_format, background_path):
+def output_video(av_name, audio_format, background_path, flag = True):
     normalized_audio_name = f"fix_audio/{av_name}_normalized.wav"
 
     normalized_audio(av_name, audio_format)
 
     audio_split(normalized_audio_name, "fix_audio")
 
-
     subtitles(f"fix_audio/{av_name}_normalized/vocals.wav", audio_name=av_name)
-    rndr_video(av_name, background_path)
 
-    if os.path.exists(normalized_audio_name):
-        os.remove(normalized_audio_name)
-        print(f"Deleted file: {normalized_audio_name}")
+    if flag is True:
+        rndr_video_audio(av_name, background_path)
     else:
-        print(f"File not found: {normalized_audio_name}")
-
-
-
+        rndr_video_video(av_name, background_path)
