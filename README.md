@@ -45,8 +45,8 @@
 
 1. Клонируйте этот репозиторий:
     ```bash
-    git clone https://github.com/yourusername/Audio2VideowithSub.git
-    cd Audio2VideowithSub
+    git clone https://github.com/KrllF/Audio2Videowithsub.git
+    cd Audio2Videowithsub
     ```
 
 2. Положите содержимое папки telegram-bot вместе с другими файлами.
