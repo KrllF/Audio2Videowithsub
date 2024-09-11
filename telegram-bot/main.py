@@ -5,7 +5,7 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.types import ContentType, FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram import Router, F
-from config import TOKEN, background_path_video, background_path_audio
+from config import TOKEN, background_path_audio
 from func_file import output_video, delete_files_in_folder
 import subprocess
 
@@ -60,7 +60,10 @@ async def handle_audio(message: types.Message):
         file_name = f"audio_file.{audio_format}"
         file_path = os.path.join(file_name)
         await bot.download_file(file.file_path, file_path)
-        output_video("audio_file", audio_format, background_path_audio)
+
+        await message.reply("Создаю видео с субтитрами...")
+
+        output_video("audio_file", audio_format, background_path_audio,flag=True)
 
 
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -79,7 +82,7 @@ async def handle_audio(message: types.Message):
 @router.callback_query(F.data == "with_voice")
 async def handle_with_voice(callback_query: types.CallbackQuery):
     try:
-        await callback_query.answer("Создаю видео с вокалом...")
+        await callback_query.answer("Видео с вокалом")
 
         video_file_path = os.path.join(all_media_dir, 'audio_file_normalized', "audio_file_plus_output.mp4")
         video_input_file = FSInputFile(video_file_path)
@@ -91,7 +94,7 @@ async def handle_with_voice(callback_query: types.CallbackQuery):
 @router.callback_query(F.data == "without_voice")
 async def handle_without_voice(callback_query: types.CallbackQuery):
     try:
-        await callback_query.answer("Создаю видео без вокала...")
+        await callback_query.answer("Видео без вокала")
         video_file_path = os.path.join(all_media_dir, 'audio_file_normalized', "audio_file_minus_output.mp4")
         video_input_file = FSInputFile(video_file_path)
         await bot.send_video(chat_id=callback_query.message.chat.id, video=video_input_file)
@@ -118,9 +121,11 @@ async def handle_video(message: types.Message):
         file_path = os.path.join(file_name)
         await bot.download_file(file.file_path, file_path)
 
-        output_video("video_file", video_format, "video_file.mp4")
+        await message.reply("Создаю видео с субтитрами...")
 
-        await message.answer("Создаю видео с субтитрами...")
+
+        output_video("video_file", video_format, "video_file.mp4", flag=False)
+
 
         video_file_path = os.path.join(all_media_dir, 'video_file_normalized', "video_file_plus_output.mp4")
         video_input_file = FSInputFile(video_file_path)
